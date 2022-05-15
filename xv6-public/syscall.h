@@ -21,3 +21,7 @@
 #define SYS_mkdir  20
 #define SYS_close  21
 #define SYS_find_next_prime_number  22
+#define SYS_change_queue 23
+#define SYS_set_priority 24
+#define SYS_set_ratio_process 25
+#define SYS_print_processes_details 26
