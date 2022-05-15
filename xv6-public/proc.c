@@ -311,6 +311,91 @@ wait(void)
   }
 }
 
+struct proc* 
+fcfs_scheduler(void)
+{
+  struct proc* p;
+  //int sum_tickets = 1;
+  int cr_time = 0;
+  int label = 0;
+  struct proc* created_sooner = 0;
+
+  for(p = ptable.proc ; p < &ptable.proc[NPROC]; p++)
+  {
+    if(p->state != RUNNABLE || p->sched_queue != FCFS)
+        continue;
+
+    if(label == 0)
+    {
+      label = 1;
+      cr_time = p->ctime;
+    }
+
+    if( p->ctime <= cr_time && label == 1)
+    {
+      cr_time = p->ctime;
+      created_sooner = p;
+    }
+
+  }
+  return created_sooner; 
+}
+
+struct proc* 
+bjf_scheduler(void)
+{
+  struct proc* p;
+  double min_rank, cur_rank;
+  int min_is_set = 0;
+  struct proc* min_rank_process = 0;
+
+  for(p = ptable.proc ; p < &ptable.proc[NPROC]; p++)
+  {
+    if(p->state != RUNNABLE || p->sched_queue != BJF)
+        continue;
+    if (min_is_set == 1)
+    {
+      cur_rank = ((1.0/p->priority)*p->priority_ratio)+(p->arrival_time*p->arrival_time_ratio)+(p->executed_cycle*0.1*p->executed_cycle_ratio);
+      if (cur_rank < min_rank)
+      {
+        min_rank = cur_rank;
+        min_rank_process = p;
+      }
+    }
+    else
+    {
+      min_rank_process = p;
+      min_rank = ((1.0/p->priority)*p->priority_ratio)+(p->arrival_time*p->arrival_time_ratio)+(p->executed_cycle*0.1*p->executed_cycle_ratio);
+      min_is_set = 1;
+    }
+  }
+  if (min_is_set == 0)
+    return 0;
+  return min_rank_process;
+}
+
+struct proc* 
+round_robin_scheduler(int* index)
+{
+  struct proc *p;
+  int selected_index = -1;
+  int cur_index;
+  for (int i = 0; i < NPROC; i++)
+  {
+    cur_index = (i + (*index)) %  NPROC;
+    if(ptable.proc[cur_index].state != RUNNABLE || ptable.proc[cur_index].sched_queue != ROUND_ROBIN)
+      continue;
+
+    p = &ptable.proc[cur_index];
+    selected_index = cur_index;
+    *index = (cur_index + 1) % NPROC;
+    break;
+  }
+  if (selected_index == -1)
+    return 0;
+  return p;
+}
+
 //PAGEBREAK: 42
 // Per-CPU process scheduler.
 // Each CPU calls scheduler() after setting itself up.
@@ -323,8 +408,10 @@ void
 scheduler(void)
 {
   struct proc *p;
+  struct proc *ap;
   struct cpu *c = mycpu();
   c->proc = 0;
+  int RR_index = 0;
   
   for(;;){
     // Enable interrupts on this processor.
@@ -332,9 +419,47 @@ scheduler(void)
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
-        continue;
+    p = round_robin_scheduler(&RR_index);
+
+    if (p == 0)
+    {
+      RR_index = 0;
+      p = fcfs_scheduler();
+    }
+
+    if (p == 0)
+    {
+      p = bjf_scheduler();
+    }
+    
+    if(p != 0)
+    {
+      p->executed_cycle++;
+
+      for(ap = ptable.proc ; ap < &ptable.proc[NPROC]; ap++)
+      {
+        if(ap->pid == 0)
+          continue;
+
+        if(ap->state == RUNNABLE)
+        {
+          ap->waiting_time++;
+        }
+
+        if (ap->waiting_time > 10000)
+        {
+          if (ap->sched_queue > 1) 
+          {
+            ap->sched_queue--;
+            ap->waiting_time = 0;
+          }
+        }
+      }
+
+      p->waiting_time = 0;
+    /////////////////for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      ///////////////if(p->state != RUNNABLE)
+        //////////////////continue;
 
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
@@ -496,6 +621,49 @@ kill(int pid)
   return -1;
 }
 
+void change_sched_queue(int pid, int dst_queue)
+{
+  struct proc* p;
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+  {
+    if(p->pid == pid)
+    {
+      p->sched_queue = dst_queue;
+      break;
+    }
+  }
+}
+
+void set_ratio_process(int pid, int priority_ratio, int arrival_time_ratio, int executed_cycle_ratio)
+{
+  struct proc* p;
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+  {
+    if(p->pid == pid)
+    {
+      p->priority_ratio = priority_ratio;
+      p->arrival_time_ratio = arrival_time_ratio;
+      p->executed_cycle_ratio = executed_cycle_ratio;
+      // cprintf("the new ratios  %d \nthe new ratios  %d \nthe new ratios  %d \n",
+      //         p->priority_ratio,p->arrival_time_ratio,p->executed_cycle_ratio);
+      break;
+    }
+  }
+}
+
+void set_priority(int pid, int priority)
+{
+  struct proc* p;
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+  {
+    if(p->pid == pid)
+    {
+      p->priority = priority;
+      break;
+    }
+  }
+}
+
 //PAGEBREAK: 36
 // Print a process listing to console.  For debugging.
 // Runs when user types ^P on console.
@@ -533,6 +701,8 @@ procdump(void)
   }
 }
 
+
+
 // find next prime number
 int 
 find_next_prime_number(int n)
@@ -557,5 +727,40 @@ find_next_prime_number(int n)
       flag=2;
     }
     i=i+1;
+  }
+}
+
+void print_processes_details(void)
+{
+  struct proc *p;
+  double rank;
+  char buf[16];
+
+  cprintf("name                pid   state       Qnum           priority   ratios           rank          exeCycle    waiting_time\n");
+  cprintf("-----------------------------------------------------------------------------------------------------------------------\n");
+
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+
+    if(p->pid == 0)
+      continue;
+    
+    cprintf("%s", p->name);
+    for (int i = 0; i < 20 - strlen(p->name); i++) cprintf(" ");
+    cprintf("%d", p->pid);
+    for (int i = 0; i < 6 - nod(p->pid); i++) cprintf(" ");
+    cprintf("%s", get_state(p->state));
+    for (int i = 0; i < 12 - strlen(get_state(p->state)); i++) cprintf(" ");
+    cprintf("%s", get_Q_name(p->sched_queue));
+    for (int i = 0; i < 15 - strlen(get_Q_name(p->sched_queue)); i++) cprintf(" ");
+    cprintf("%d", p->priority);
+    for (int i = 0; i < 10 - nod(p->priority); i++) cprintf(" ");
+    cprintf("%d, %d, %d", p->priority_ratio, p->arrival_time_ratio, p->executed_cycle_ratio);
+    for (int i = 0; i < 13-nod(p->priority_ratio)-nod(p->arrival_time_ratio)-nod(p->executed_cycle_ratio); i++) cprintf(" ");
+    rank = ((1.0/p->priority)*p->priority_ratio)+(p->arrival_time*p->arrival_time_ratio)+(p->executed_cycle*0.1*p->executed_cycle_ratio);
+    cprintf("%s",double_to_string(rank, buf, 3));
+    for (int i = 0; i < 14 - strlen(buf); i++) cprintf(" ");
+    cprintf("%d", p->executed_cycle);
+    for (int i = 0; i < 12 - nod(p->executed_cycle); i++) cprintf(" ");
+    cprintf("%d\n", p->waiting_time);
   }
 }
