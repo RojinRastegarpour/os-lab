@@ -32,6 +32,11 @@ struct context {
   uint eip;
 };
 
+void change_sched_queue(int pid, int dst_queue);
+void set_priority(int pid, int priority);
+void set_ratio_process(int pid, int priority_ratio, int arrival_time_ratio, int executed_cycle_ratio);
+void print_processes_details(void);
+
 enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
 // Per-process state
