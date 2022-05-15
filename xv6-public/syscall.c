@@ -104,6 +104,10 @@ extern int sys_wait(void);
 extern int sys_write(void);
 extern int sys_uptime(void);
 extern int sys_find_next_prime_number(void);
+extern int sys_change_queue(void);
+extern int sys_set_priority(void);
+extern int sys_set_ratio_process(void);
+extern int sys_print_processes_details(void);
 
 static int (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
@@ -128,6 +132,11 @@ static int (*syscalls[])(void) = {
 [SYS_mkdir]   sys_mkdir,
 [SYS_close]   sys_close,
 [SYS_find_next_prime_number] sys_find_next_prime_number,
+[SYS_get_creation_time] sys_get_creation_time,
+[SYS_change_queue] sys_change_queue,
+[SYS_set_priority] sys_set_priority,
+[SYS_set_ratio_process] sys_set_ratio_process,
+[SYS_print_processes_details] sys_print_processes_details,
 };
 
 void
